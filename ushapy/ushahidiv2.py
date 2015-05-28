@@ -19,7 +19,7 @@ from requests.auth import HTTPBasicAuth
 import time
 import json
 import datetime
-#import read_write_csv
+import pandas as pd
 
 
 """ Add new set of categories (with subcategories) to Ushahidi Platform
@@ -70,30 +70,23 @@ def get_ush_report(mapurl, reportid):
 	return(payload)
 
 
-""" Get reports from ushahidi website
-
-Parameters:
-* mapurl: String containing URL of Ushahidi Platform instance, e.g. http://www.mymap.com/
-* reports
-
-"""
 def get_all_reports(mapurl):
-	#Put list of sites into a dictionary
-	reports = []
-	numreports = get_number_of_ush_reports(mapurl)
-	numcalls = numreports/100
-	if numcalls < 100 or numcalls%100 != 0:
-		numcalls += 1
-	for call in range(0, numcalls):
-		startid = str(call*100)
-		if call == 0:
-			response = requests.get(url=mapurl+"api?task=incidents&limit=100")  #Ush api crashes if sinceid=0
-		else:
-			response = requests.get(url=mapurl+"api?task=incidents&by=sinceid&id="+startid+"&limit=100")
-		reportsjson = json.loads(response.text)
-		for sitedetails in reportsjson['payload']['incidents']:
-			reports += [sitedetails];
-	return reports
+	response = requests.get(url=mapurl+"api?task=incidents&limit=100")  #Ush api crashes if sinceid=0
+	data = response.json()
+	d = [it ['incident'] for it in data['payload']['incidents']]
+	df = pd.DataFrame(d,columns=['locationlongitude',
+      u'incidentdescription',
+      u'incidenttitle',
+      u'incidentactive',
+      u'incidentverified',
+      u'incidentmode',
+      u'locationlatitude',
+      u'locationname',
+      u'incidentdate',
+      u'locationid' ,
+      u'incidentid'])
+
+	return df
 
 
 
@@ -237,99 +230,31 @@ def add_report_to_platform(mapurl, title, description, lat, lon, location, categ
 	return(r)
 
 
-def add_message_to_platform(mapurl, message_text, message_date_in, message_type, 
-	service_messageid, message_level, reporter_id, message_from, message_to, message_detail, 
-	parent_id, incident_id, latitude, longitude, 
-	username, password, newmessage=True):
-	
-	#Make sure there's a timestamp on this message
-	if message_date_in == '':
-		now = time.gmtime();
-		message_date = time.strftime("%Y-%m-%d %H:%M:%S", now);
-	else:
-		message_date = message_date_in;
+""" Get messages from ushahidi website
 
-	payload = { \
-	'task': 'messages', \
-	'action': 'add', \
-	'message_text': message_text, \
-	'message_date': message_date, \
-	'message_type': message_type, \
-	'service_messageid': service_messageid, \
-	'message_level': message_level, \
-	'reporter_id': reporter_id, \
-	'message_from': message_from, \
-	'message_to': message_to, \
-	'message_detail': message_detail, \
-	'parent_id': parent_id, \
-	'incident_id': incident_id, \
-	'latitude': latitude, \
-	'longitude': longitude \
-	};
+Parameters:
+* mapurl: String containing URL of Ushahidi Platform instance, e.g. http://www.mymap.com/
+* username: depolyment username on Ushahidi Platform (for Admin API)
+# passwd: deployment password on Ushahidi Platform (for Admin API)
 
-	r = requests.post(mapurl+"api", data=payload, auth=(username, password));
+"""
+def get_messages(mapurl,user,passwd):
+	response = requests.get(url=mapurl+"api?task=messages&by=all",auth=HTTPBasicAuth(user,passwd)) 
+	data = response.json()
+	d = [it ['message'] for it in data['payload']['messages']]
+	df = pd.DataFrame(d, columns=['incident_id', 
+		'message_from', 
+		'message_to', 
+		'message_date',
+		'message_text',
+		'locationlatitude',
+		'message_detail',
+		'parent_id','reporter_id',
+		'message_level',
+		'service_message_id',
+		'message_type',
+		'message_id',
+		'locationlongitude'])
 
-	return(r)
-
-
-def add_reporter_to_platform(mapurl, service_id, service_account, level_id, reporter_first, reporter_last,
-	reporter_email, reporter_phone, reporter_ip, reporter_date, location_name, latitude, longitude, 
-	username, password, newservice=True):
-	
-	payload = { \
-	'task': 'reporters', \
-	'action': 'add', \
-	'service_id': service_id, \
-	'service_account': service_account, \
-	'level_id': level_id, \
-	'reporter_first': reporter_first, \
-	'reporter_last': reporter_last, \
-	'reporter_email': reporter_email, \
-	'reporter_phone': reporter_phone, \
-	'reporter_ip': reporter_ip, \
-	'reporter_date': reporter_date, \
-	'location_id': '', \
-	'location_name': location_name, \
-	'latitude': latitude, \
-	'longitude': longitude \
-	};
-	
-	r = requests.post(mapurl+"api", data=payload, auth=(username, password));
-	
-	return(r)
-
-
-def add_service_to_platform(mapurl, service_name, service_description, service_url, service_api,
-	username, password, newservice=True):
-	
-	payload = { \
-	'task': 'services', \
-	'action': 'add', \
-	'service_name': service_name, \
-	'service_description': service_description, \
-	'service_url': service_url, \
-	'service_api': service_api \
-	};
-
-	r = requests.post(mapurl+"api", data=payload, auth=(username, password));
-
-	return(r)
-
-
-def edit_service(mapurl, service_id, service_name, service_description, service_url, service_api,
-	username, password, newservice=True):
-	
-	payload = { \
-	'task': 'services', \
-	'action': 'edit', \
-	'service_id': service_id, \
-	'service_name': service_name, \
-	'service_description': service_description, \
-	'service_url': service_url, \
-	'service_api': service_api \
-	};
-	
-	r = requests.post(mapurl+"api", data=payload, auth=(username, password));
-	
-	return(r)
+	return df
 
